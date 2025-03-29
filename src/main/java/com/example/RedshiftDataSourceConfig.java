@@ -4,13 +4,17 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import javax.sql.DataSource;
 
 @Configuration
+@EnableScheduling
 public class RedshiftDataSourceConfig {
 
     private final AwsRedshiftCredentialsService credentialsService;
+    private RefreshableDataSource refreshableDataSource;
 
     public RedshiftDataSourceConfig(AwsRedshiftCredentialsService credentialsService) {
         this.credentialsService = credentialsService;
@@ -18,14 +22,29 @@ public class RedshiftDataSourceConfig {
 
     @Bean
     public DataSource dataSource() {
-        var creds = credentialsService.getCredentials();
+        var hikari = createNewDataSource();
+        this.refreshableDataSource = new RefreshableDataSource(hikari);
+        return refreshableDataSource;
+    }
 
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:redshift://redshift-cluster-2.ctvkzfuvyikn.eu-west-2.redshift.amazonaws.com:5439/dev");
+    private HikariDataSource createNewDataSource() {
+        var creds = credentialsService.getCredentials();
+        var host = credentialsService.getClusterHost();
+        var port = credentialsService.getClusterPort();
+
+        var config = new HikariConfig();
+        config.setJdbcUrl("jdbc:redshift://" + host + ":" + port + "/" + "dev");
         config.setUsername(creds.dbUser());
         config.setPassword(creds.dbPassword());
-        config.setDriverClassName("com.amazon.redshift.jdbc42.Driver");
-
+        config.setMaximumPoolSize(5);
+        config.setPoolName("RedshiftPool");
         return new HikariDataSource(config);
+    }
+
+    @Scheduled(fixedDelay = 10 * 60 * 1000)
+    public void refreshCredentials() {
+        var newDataSource = createNewDataSource();
+        refreshableDataSource.refresh(newDataSource);
+        System.out.println("🔄 Refreshed Redshift credentials + DataSource");
     }
 }
