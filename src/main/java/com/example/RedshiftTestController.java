@@ -13,8 +13,8 @@ public class RedshiftTestController {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    @GetMapping("/current-date")
+    @GetMapping("/process-end")
     public String getCurrentDate() {
-        return jdbcTemplate.queryForObject("SELECT current_date;", String.class);
+        return jdbcTemplate.queryForObject("SELECT process_end_date::DATE FROM \"dev\".\"public\".\"processing_date\";", String.class);
     }
 }
