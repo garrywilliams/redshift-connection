@@ -1,3 +1,4 @@
+# AWS Redshift Configuration
 redshift:
   cluster-id: redshift-cluster-2
   db-name: dev
@@ -5,3 +6,10 @@ redshift:
   db-user: app_user   # optional
   host: # optional
   port: # optional, defaults to 5439
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.example: DEBUG
+    org.springframework.jdbc: INFO

@@ -86,30 +86,14 @@ This allows long-running services to maintain a valid Redshift connection pool e
 
 ## 🔍 Endpoint
 
-```java
-@GetMapping("/process-end")
-public Map<String, Object> getProcessInfo() {
-    String processEndDate = jdbcTemplate.queryForObject(
-            "SELECT process_end_date::DATE FROM \"dev\".\"public\".\"processing_date\";",
-            String.class
-    );
-
-    LocalDateTime currentDateTime = LocalDateTime.now();
-
-    return Map.of(
-            "processEndDate", processEndDate,
-            "currentDateTime", currentDateTime.toString()
-    );
-}
-```
-
 Hit `http://localhost:8080/process-end` to verify the connection.
 
 Example response:
 
 ```json
 {
-  "currentDateTime": "2025-03-30T09:58:32.100659",
+  "currentDateTime": "2025-03-30T11:36:43.593404",
+  "status": "success",
   "processEndDate": "2025-03-28"
 }
 ```
@@ -139,6 +123,7 @@ sequenceDiagram
 **Q: Do I still need to create a Redshift user?**
 
 Yes, either:
+
 - Pre-create the user with the matching IAM name, or
 - Allow Redshift to `autoCreate` the user via IAM policy
 

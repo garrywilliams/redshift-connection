@@ -12,8 +12,15 @@ repositories {
 }
 
 dependencies {
+    // Testing dependencies
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.mockito:mockito-core:5.7.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.7.0'
+    testImplementation 'com.h2database:h2'  // H2 only in test scope
+    
+    // Production dependencies
     implementation 'com.amazon.redshift:redshift-jdbc42:2.1.0.32'
     implementation 'software.amazon.awssdk:redshift:2.25.17'
     implementation 'software.amazon.awssdk:auth:2.25.17'
@@ -22,10 +29,14 @@ dependencies {
     implementation 'software.amazon.awssdk:sts:2.25.17'
     implementation 'com.amazonaws:aws-java-sdk-core:1.12.681'
     implementation 'com.amazonaws:aws-java-sdk-redshift:1.12.681'
+    implementation 'org.springframework.boot:spring-boot-autoconfigure'
 }
 
 test {
     useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
 }
 
 java {

@@ -2,7 +2,6 @@ package com.example;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -28,7 +27,8 @@ public class RedshiftDataSourceConfig {
         return refreshableDataSource;
     }
 
-    private HikariDataSource createNewDataSource() {
+    // Change from private to protected to allow mocking in tests
+    protected HikariDataSource createNewDataSource() {
         var creds = credentialsService.getCredentials();
 
         var config = new HikariConfig();

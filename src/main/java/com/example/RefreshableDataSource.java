@@ -1,64 +1,71 @@
 package com.example;
 
+import com.zaxxer.hikari.HikariDataSource;
+
 import javax.sql.DataSource;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
 public class RefreshableDataSource implements DataSource {
-    private volatile DataSource delegate;
+    private final AtomicReference<HikariDataSource> dataSourceRef;
 
-    public RefreshableDataSource(DataSource initialDataSource) {
-        this.delegate = initialDataSource;
+    public RefreshableDataSource(HikariDataSource initialDataSource) {
+        this.dataSourceRef = new AtomicReference<>(initialDataSource);
     }
 
-    public void refresh(DataSource newDataSource) {
-        this.delegate = newDataSource;
+    public void refresh(HikariDataSource newDataSource) {
+        HikariDataSource oldDataSource = dataSourceRef.getAndSet(newDataSource);
+        if (oldDataSource != null && !oldDataSource.isClosed()) {
+            oldDataSource.close();
+        }
     }
 
     @Override
     public Connection getConnection() throws SQLException {
-        return delegate.getConnection();
+        return dataSourceRef.get().getConnection();
     }
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        return delegate.getConnection(username, password);
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        return delegate.unwrap(iface);
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return delegate.isWrapperFor(iface);
+        return dataSourceRef.get().getConnection(username, password);
     }
 
     @Override
     public PrintWriter getLogWriter() throws SQLException {
-        return delegate.getLogWriter();
+        return dataSourceRef.get().getLogWriter();
     }
 
     @Override
     public void setLogWriter(PrintWriter out) throws SQLException {
-        delegate.setLogWriter(out);
+        dataSourceRef.get().setLogWriter(out);
     }
 
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
-        delegate.setLoginTimeout(seconds);
+        dataSourceRef.get().setLoginTimeout(seconds);
     }
 
     @Override
     public int getLoginTimeout() throws SQLException {
-        return delegate.getLoginTimeout();
+        return dataSourceRef.get().getLoginTimeout();
     }
 
     @Override
-    public Logger getParentLogger() {
-        return Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+    public Logger getParentLogger() throws SQLFeatureNotSupportedException {
+        return dataSourceRef.get().getParentLogger();
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> iface) throws SQLException {
+        return dataSourceRef.get().unwrap(iface);
+    }
+
+    @Override
+    public boolean isWrapperFor(Class<?> iface) throws SQLException {
+        return dataSourceRef.get().isWrapperFor(iface);
     }
 }

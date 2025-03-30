@@ -1,0 +1,21 @@
+# Test configuration properties
+
+# Redshift configuration
+redshift:
+  cluster-id: test-cluster
+  db-name: test-db
+  region: us-west-2
+  db-user: test-user
+  host: redshift.example.com
+  port: 5439
+  
+# Spring datasource for tests
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password: password
+  test:
+    database:
+      replace: none

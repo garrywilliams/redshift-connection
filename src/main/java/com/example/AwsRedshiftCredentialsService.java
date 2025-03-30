@@ -28,7 +28,6 @@ public class AwsRedshiftCredentialsService {
     @Value("${redshift.port:#{null}}")
     private Integer configuredPort;
 
-
     public RedshiftDbCredentials getCredentials() {
         var credentialsProvider = DefaultCredentialsProvider.create();
 
