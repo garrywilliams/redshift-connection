@@ -25,8 +25,9 @@ public class AwsRedshiftCredentialsService {
     @Value("${redshift.host:}")
     private String configuredHost;
 
-    @Value("${redshift.port:5439}")
-    private int configuredPort;
+    @Value("${redshift.port:#{null}}")
+    private Integer configuredPort;
+
 
     public RedshiftDbCredentials getCredentials() {
         var credentialsProvider = DefaultCredentialsProvider.create();
@@ -46,7 +47,7 @@ public class AwsRedshiftCredentialsService {
 
         if (configuredHost != null && !configuredHost.isBlank()) {
             host = configuredHost;
-            port = configuredPort;
+            port = (configuredPort != null) ? configuredPort : 5439;
             System.out.println("📦 Using configured Redshift host/port: " + host + ":" + port);
         } else {
             System.out.println("🔍 Looking up cluster host/port via DescribeClusters...");

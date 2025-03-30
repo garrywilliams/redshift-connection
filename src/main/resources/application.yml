@@ -4,4 +4,4 @@ redshift:
   region: eu-west-2
   db-user: app_user   # optional
   host: # optional
-  port: 5439 # optional, defaults to 5439
+  port: # optional, defaults to 5439
