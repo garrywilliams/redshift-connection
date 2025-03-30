@@ -49,15 +49,19 @@ redshift:
   region: your-aws-region
   db-user: your-redshift-user # optional - defaults to IAM caller
   db-user-role: your-assumable-role-arn # optional - used to assume a role before fetching credentials
+  host: your-redshift-cluster-hostname # optional - skip DescribeClusters if provided
+  port: 5439 # optional - default is 5439
 ```
 
-> Set these values in your `application.yml` or as environment variables:
->
-> - `REDSHIFT_CLUSTER_ID`
-> - `REDSHIFT_DB_NAME`
-> - `REDSHIFT_REGION`
-> - `REDSHIFT_DB_USER` (optional)
-> - `REDSHIFT_DB_USER_ROLE` (optional, use if you want to assume a role first)
+---
+
+## 🔐 Required IAM Permissions
+
+| Action                         | Required For                                       |
+|--------------------------------|----------------------------------------------------|
+| redshift:GetClusterCredentials | Always required to obtain temporary credentials    |
+| redshift:DescribeClusters      | Optional - only needed if `host` is not configured |
+| sts:AssumeRole                 | Only if `db-user-role` is provided in config       |
 
 ---
 
@@ -69,8 +73,6 @@ You can test locally using [awsume](https://awsu.me) or any other AWS credential
 awsume your-role
 ./gradlew bootRun
 ```
-
-If you omit `db-user`, the app will use the IAM username (parsed from the AWS STS `GetCallerIdentity` response).
 
 ---
 
@@ -84,16 +86,51 @@ This allows long-running services to maintain a valid Redshift connection pool e
 
 ## 🔍 Endpoint
 
-A simple HTTP controller is included:
-
 ```java
-@GetMapping("/test-redshift")
-public String testQuery() {
-    return jdbcTemplate.queryForObject("SELECT current_date", String.class);
+@GetMapping("/process-end")
+public Map<String, Object> getProcessInfo() {
+    String processEndDate = jdbcTemplate.queryForObject(
+            "SELECT process_end_date::DATE FROM \"dev\".\"public\".\"processing_date\";",
+            String.class
+    );
+
+    LocalDateTime currentDateTime = LocalDateTime.now();
+
+    return Map.of(
+            "processEndDate", processEndDate,
+            "currentDateTime", currentDateTime.toString()
+    );
 }
 ```
 
-Hit `http://localhost:8080/test-redshift` to verify the connection.
+Hit `http://localhost:8080/process-end` to verify the connection.
+
+Example response:
+
+```json
+{
+  "currentDateTime": "2025-03-30T09:58:32.100659",
+  "processEndDate": "2025-03-28"
+}
+```
+
+---
+
+## 📊 Mermaid Diagram
+
+```mermaid
+sequenceDiagram
+    participant SpringBootApp
+    participant STS
+    participant Redshift
+
+    SpringBootApp->>STS: GetCallerIdentity (if db-user is blank)
+    SpringBootApp->>STS: AssumeRole (if db-user-role provided)
+    SpringBootApp->>Redshift: GetClusterCredentials
+    Redshift-->>SpringBootApp: Temp Credentials (username, password)
+    SpringBootApp->>Redshift: Connect using temp credentials
+    Note right of SpringBootApp: Refresh credentials every 10 minutes
+```
 
 ---
 
@@ -102,7 +139,6 @@ Hit `http://localhost:8080/test-redshift` to verify the connection.
 **Q: Do I still need to create a Redshift user?**
 
 Yes, either:
-
 - Pre-create the user with the matching IAM name, or
 - Allow Redshift to `autoCreate` the user via IAM policy
 

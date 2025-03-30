@@ -22,34 +22,39 @@ public class AwsRedshiftCredentialsService {
     @Value("${redshift.db-user:}")
     private String configuredDbUser;
 
-    @Value("${redshift.endpoint:}")
-    private String configuredEndpoint;
+    @Value("${redshift.host:}")
+    private String configuredHost;
 
-    @Value("${redshift.port:}")
-    private String configuredPort;
+    @Value("${redshift.port:5439}")
+    private int configuredPort;
 
     public RedshiftDbCredentials getCredentials() {
         var credentialsProvider = DefaultCredentialsProvider.create();
 
+        // 🔐 Determine dbUser
         String dbUser;
         if (configuredDbUser != null && !configuredDbUser.isBlank()) {
             dbUser = configuredDbUser;
             System.out.println("👤 Using configured dbUser: " + dbUser);
         } else {
             dbUser = resolveCallerDbUser(credentialsProvider);
+            System.out.println("👤 Fallback dbUser resolved from ARN: " + dbUser);
         }
 
-        var redshift = RedshiftClient.builder()
-                .region(Region.of(region))
-                .credentialsProvider(credentialsProvider)
-                .build();
+        String host;
+        int port;
 
-        // 🧠 Resolve host and port from config if available, otherwise from DescribeClusters
-        String host = configuredEndpoint;
-        String port = configuredPort;
-
-        if (host == null || host.isBlank() || port == null || port.isBlank()) {
+        if (configuredHost != null && !configuredHost.isBlank()) {
+            host = configuredHost;
+            port = configuredPort;
+            System.out.println("📦 Using configured Redshift host/port: " + host + ":" + port);
+        } else {
             System.out.println("🔍 Looking up cluster host/port via DescribeClusters...");
+            var redshift = RedshiftClient.builder()
+                    .region(Region.of(region))
+                    .credentialsProvider(credentialsProvider)
+                    .build();
+
             var cluster = redshift.describeClusters(DescribeClustersRequest.builder()
                             .clusterIdentifier(clusterId)
                             .build())
@@ -59,17 +64,16 @@ public class AwsRedshiftCredentialsService {
                     .orElseThrow(() -> new RuntimeException("Cluster " + clusterId + " not found"));
 
             host = cluster.endpoint().address();
-            port = String.valueOf(cluster.endpoint().port());
-
-            System.setProperty("resolved.redshift.endpoint", host);
-            System.setProperty("resolved.redshift.port", port);
+            port = cluster.endpoint().port();
 
             System.out.println("✅ Resolved host: " + host + ", port: " + port);
-        } else {
-            System.out.println("📦 Using configured Redshift host/port: " + host + ":" + port);
-            System.setProperty("resolved.redshift.endpoint", host);
-            System.setProperty("resolved.redshift.port", port);
         }
+
+        // 🪪 Now get credentials using resolved host/port/dbUser
+        var redshift = RedshiftClient.builder()
+                .region(Region.of(region))
+                .credentialsProvider(credentialsProvider)
+                .build();
 
         var credsResponse = redshift.getClusterCredentials(GetClusterCredentialsRequest.builder()
                 .clusterIdentifier(clusterId)
@@ -83,7 +87,7 @@ public class AwsRedshiftCredentialsService {
                 dbUser,
                 credsResponse.dbPassword(),
                 host,
-                Integer.parseInt(port)
+                port
         );
     }
 
@@ -96,9 +100,6 @@ public class AwsRedshiftCredentialsService {
         var callerArn = sts.getCallerIdentity(builder -> {}).arn();
         var parts = callerArn.split("/");
         var rawName = parts[parts.length - 1];
-        var dbUser = rawName.replaceAll("[^a-zA-Z0-9_+.@$\\-]", "_");
-
-        System.out.println("👤 Fallback dbUser resolved from ARN: " + dbUser);
-        return dbUser;
+        return rawName.replaceAll("[^a-zA-Z0-9_+.@$\\-]", "_");
     }
 }

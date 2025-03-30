@@ -2,5 +2,6 @@ redshift:
   cluster-id: redshift-cluster-2
   db-name: dev
   region: eu-west-2
-  db-user: app_user  # Optional: omit to fallback to IAM identity
-
+  db-user: app_user   # optional
+  host: # optional
+  port: 5439 # optional, defaults to 5439
