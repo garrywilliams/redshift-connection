@@ -1,3 +1,4 @@
+
 # Redshift IAM Authentication with Spring Boot
 
 This project demonstrates how to connect a Spring Boot application to an **Amazon Redshift** cluster using **temporary IAM credentials** (rather than a static password). It supports **dynamic credential rotation**, **secure access via IAM**, and includes an HTTP endpoint to trigger Redshift queries.
@@ -8,6 +9,7 @@ This project demonstrates how to connect a Spring Boot application to an **Amazo
 
 - 🔐 IAM-based authentication to Redshift (no password storage!)
 - 🔁 Automatic rotation of credentials every 10 minutes
+- 👥 Supports IAM roles for Redshift authentication
 - ☁️ Integration with AWS SDK v2 (Redshift & STS)
 - 🧪 Local dev support via `awsume` or any configured AWS profile
 - 🔍 Lightweight HTTP endpoint to validate access to Redshift
@@ -46,6 +48,7 @@ redshift:
   db-name: your-db-name
   region: your-aws-region
   db-user: your-redshift-user # optional - defaults to IAM caller
+  db-user-role: your-assumable-role-arn # optional - used to assume a role before fetching credentials
 ```
 
 > Set these values in your `application.yml` or as environment variables:
@@ -54,6 +57,7 @@ redshift:
 > - `REDSHIFT_DB_NAME`
 > - `REDSHIFT_REGION`
 > - `REDSHIFT_DB_USER` (optional)
+> - `REDSHIFT_DB_USER_ROLE` (optional, use if you want to assume a role first)
 
 ---
 
@@ -109,6 +113,10 @@ Your connection pool will start to fail after the credentials expire. This setup
 **Q: Why is this better than storing Redshift passwords?**
 
 You don’t store secrets at all. The password is generated securely on-the-fly by AWS.
+
+**Q: Can I assume a different IAM role before getting credentials?**
+
+Yes — specify the `db-user-role` in `application.yml`, and the app will first assume that role before calling `GetClusterCredentials`.
 
 ---
 

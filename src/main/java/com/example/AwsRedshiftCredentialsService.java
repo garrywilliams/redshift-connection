@@ -5,12 +5,7 @@ import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.redshift.RedshiftClient;
-import software.amazon.awssdk.services.redshift.model.Cluster;
-import software.amazon.awssdk.services.redshift.model.DescribeClustersRequest;
-import software.amazon.awssdk.services.redshift.model.GetClusterCredentialsRequest;
-import software.amazon.awssdk.services.redshift.model.GetClusterCredentialsResponse;
-import software.amazon.awssdk.services.sts.StsClient;
-import software.amazon.awssdk.services.sts.model.GetCallerIdentityRequest;
+import software.amazon.awssdk.services.redshift.model.*;
 
 @Service
 public class AwsRedshiftCredentialsService {
@@ -27,63 +22,83 @@ public class AwsRedshiftCredentialsService {
     @Value("${redshift.db-user:}")
     private String configuredDbUser;
 
-    private final DefaultCredentialsProvider credentialsProvider = DefaultCredentialsProvider.create();
+    @Value("${redshift.endpoint:}")
+    private String configuredEndpoint;
 
-    public GetClusterCredentialsResponse getCredentials() {
-        String dbUser = resolveDbUser();
+    @Value("${redshift.port:}")
+    private String configuredPort;
 
-        RedshiftClient redshift = getRedshiftClient();
+    public RedshiftDbCredentials getCredentials() {
+        var credentialsProvider = DefaultCredentialsProvider.create();
 
-        return redshift.getClusterCredentials(GetClusterCredentialsRequest.builder()
+        String dbUser;
+        if (configuredDbUser != null && !configuredDbUser.isBlank()) {
+            dbUser = configuredDbUser;
+            System.out.println("👤 Using configured dbUser: " + dbUser);
+        } else {
+            dbUser = resolveCallerDbUser(credentialsProvider);
+        }
+
+        var redshift = RedshiftClient.builder()
+                .region(Region.of(region))
+                .credentialsProvider(credentialsProvider)
+                .build();
+
+        // 🧠 Resolve host and port from config if available, otherwise from DescribeClusters
+        String host = configuredEndpoint;
+        String port = configuredPort;
+
+        if (host == null || host.isBlank() || port == null || port.isBlank()) {
+            System.out.println("🔍 Looking up cluster host/port via DescribeClusters...");
+            var cluster = redshift.describeClusters(DescribeClustersRequest.builder()
+                            .clusterIdentifier(clusterId)
+                            .build())
+                    .clusters()
+                    .stream()
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Cluster " + clusterId + " not found"));
+
+            host = cluster.endpoint().address();
+            port = String.valueOf(cluster.endpoint().port());
+
+            System.setProperty("resolved.redshift.endpoint", host);
+            System.setProperty("resolved.redshift.port", port);
+
+            System.out.println("✅ Resolved host: " + host + ", port: " + port);
+        } else {
+            System.out.println("📦 Using configured Redshift host/port: " + host + ":" + port);
+            System.setProperty("resolved.redshift.endpoint", host);
+            System.setProperty("resolved.redshift.port", port);
+        }
+
+        var credsResponse = redshift.getClusterCredentials(GetClusterCredentialsRequest.builder()
                 .clusterIdentifier(clusterId)
                 .dbUser(dbUser)
                 .dbName(dbName)
-                .autoCreate(false) // set to true if allowed in your IAM policy
+                .autoCreate(false)
                 .build());
+
+        return new RedshiftDbCredentials(
+                dbName,
+                dbUser,
+                credsResponse.dbPassword(),
+                host,
+                Integer.parseInt(port)
+        );
     }
 
-    public String getClusterHost() {
-        return getCluster().endpoint().address();
-    }
-
-    public int getClusterPort() {
-        return getCluster().endpoint().port();
-    }
-
-    private Cluster getCluster() {
-        RedshiftClient redshift = getRedshiftClient();
-        return redshift.describeClusters(DescribeClustersRequest.builder()
-                        .clusterIdentifier(clusterId)
-                        .build())
-                .clusters()
-                .get(0);
-    }
-
-    private RedshiftClient getRedshiftClient() {
-        return RedshiftClient.builder()
+    private String resolveCallerDbUser(DefaultCredentialsProvider provider) {
+        var sts = software.amazon.awssdk.services.sts.StsClient.builder()
                 .region(Region.of(region))
-                .credentialsProvider(credentialsProvider)
-                .build();
-    }
-
-    private String resolveDbUser() {
-        if (configuredDbUser != null && !configuredDbUser.isBlank()) {
-            System.out.println("👤 Using configured dbUser: " + configuredDbUser);
-            return configuredDbUser;
-        }
-
-        // Fallback to IAM caller identity (e.g. for local testing)
-        StsClient sts = StsClient.builder()
-                .region(Region.of(region))
-                .credentialsProvider(credentialsProvider)
+                .credentialsProvider(provider)
                 .build();
 
-        var callerArn = sts.getCallerIdentity(GetCallerIdentityRequest.builder().build()).arn();
+        var callerArn = sts.getCallerIdentity(builder -> {}).arn();
         var parts = callerArn.split("/");
         var rawName = parts[parts.length - 1];
-        var fallbackUser = rawName.replaceAll("[^a-zA-Z0-9_+.@$\\-]", "_");
+        var dbUser = rawName.replaceAll("[^a-zA-Z0-9_+.@$\\-]", "_");
 
-        System.out.println("👤 Fallback dbUser resolved from ARN: " + fallbackUser);
-        return fallbackUser;
+        System.out.println("👤 Fallback dbUser resolved from ARN: " + dbUser);
+        return dbUser;
     }
 }

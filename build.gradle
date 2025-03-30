@@ -20,6 +20,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'software.amazon.awssdk:sts:2.25.17'
+    implementation 'com.amazonaws:aws-java-sdk-core:1.12.681'
+    implementation 'com.amazonaws:aws-java-sdk-redshift:1.12.681'
 }
 
 test {

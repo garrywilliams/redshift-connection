@@ -2,6 +2,7 @@ package com.example;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -29,15 +30,17 @@ public class RedshiftDataSourceConfig {
 
     private HikariDataSource createNewDataSource() {
         var creds = credentialsService.getCredentials();
-        var host = credentialsService.getClusterHost();
-        var port = credentialsService.getClusterPort();
 
         var config = new HikariConfig();
-        config.setJdbcUrl("jdbc:redshift://" + host + ":" + port + "/" + "dev");
+        config.setJdbcUrl("jdbc:redshift:iam://" + creds.host() + ":" + creds.port() + "/" + creds.dbName());
+
+        System.out.println("🔐 Using JDBC URL: " + config.getJdbcUrl());
+
         config.setUsername(creds.dbUser());
         config.setPassword(creds.dbPassword());
         config.setMaximumPoolSize(5);
         config.setPoolName("RedshiftPool");
+
         return new HikariDataSource(config);
     }
 
